@@ -1,6 +1,5 @@
 # Proyecto Final Módulo 4 – Uber Ride Analytics
 
-# Proyecto Final Módulo 4 – Uber Ride Analytics
 
 ## Descripción
 
