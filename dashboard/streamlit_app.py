@@ -39,11 +39,15 @@ def load_data():
         .merge(dim_status, on="status_key", how="left")
     )
 
-    if "full_date" in df.columns:
-        df["full_date"] = pd.to_datetime(df["full_date"])
+    date_col = None
+    for col in ["full_date", "date", "booking_date"]:
+        if col in df.columns:
+            date_col = col
+            break
 
-    if "month" in df.columns:
-        df["month"] = df["month"].astype(str)
+    if date_col:
+        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+        df["year_month"] = df[date_col].dt.to_period("M").astype(str)
 
     return df
 
@@ -74,25 +78,26 @@ st.divider()
 # =========================
 st.sidebar.header("Filtros del dashboard")
 
-vehicle_options = sorted(df["vehicle_type"].dropna().unique())
-status_options = sorted(df["booking_status"].dropna().unique())
+vehicle_options = ["Todos"] + sorted(df["vehicle_type"].dropna().unique())
+status_options = ["Todos"] + sorted(df["booking_status"].dropna().unique())
 
-vehicle_filter = st.sidebar.multiselect(
+vehicle_filter = st.sidebar.selectbox(
     "Tipo de vehículo",
-    options=vehicle_options,
-    default=vehicle_options
+    options=vehicle_options
 )
 
-status_filter = st.sidebar.multiselect(
+status_filter = st.sidebar.selectbox(
     "Estado del viaje",
-    options=status_options,
-    default=status_options
+    options=status_options
 )
 
-df_filtered = df[
-    (df["vehicle_type"].isin(vehicle_filter)) &
-    (df["booking_status"].isin(status_filter))
-].copy()
+df_filtered = df.copy()
+
+if vehicle_filter != "Todos":
+    df_filtered = df_filtered[df_filtered["vehicle_type"] == vehicle_filter]
+
+if status_filter != "Todos":
+    df_filtered = df_filtered[df_filtered["booking_status"] == status_filter]
 
 
 # =========================
@@ -122,6 +127,18 @@ col2.metric("Total revenue", f"${total_revenue:,.0f}")
 col3.metric("Completion rate", f"{completion_rate:.2%}")
 col4.metric("Failure rate", f"{failure_rate:.2%}")
 
+st.info(
+    f"""
+    Durante 2024 se registraron **{total_bookings:,.0f} reservas** con ingresos totales de 
+    **${total_revenue:,.0f}**. 
+    
+    La tasa de finalización fue de **{completion_rate:.2%}**, mientras que la tasa de fallas fue de 
+    **{failure_rate:.2%}**. Esto significa que aproximadamente **{failed_bookings:,.0f} reservas**
+    no terminaron como viajes completados, ya sea por cancelaciones del cliente, cancelaciones del conductor,
+    falta de conductor o viajes incompletos.
+    """
+)
+
 st.divider()
 
 
@@ -149,6 +166,15 @@ status_chart = (
 )
 
 st.altair_chart(status_chart, use_container_width=True)
+
+top_status = status_summary.iloc[0]
+
+st.success(
+    f"""
+    El estado de viaje más frecuente es **{top_status['booking_status']}**, con 
+    **{top_status['total_bookings']:,.0f} reservas**.
+    """
+)
 
 st.divider()
 
@@ -191,10 +217,18 @@ vehicle_chart = (
 
 st.altair_chart(vehicle_chart, use_container_width=True)
 
-st.dataframe(
-    vehicle_revenue,
-    use_container_width=True
-)
+if not vehicle_revenue.empty:
+    top_vehicle = vehicle_revenue.iloc[0]
+
+    st.info(
+        f"""
+        El tipo de vehículo con mayores ingresos es **{top_vehicle['vehicle_type']}**, con 
+        **${top_vehicle['total_revenue']:,.0f}** generados en 
+        **{top_vehicle['total_bookings']:,.0f} reservas**.
+        """
+    )
+
+st.dataframe(vehicle_revenue, use_container_width=True)
 
 st.divider()
 
@@ -205,33 +239,25 @@ st.divider()
 st.markdown("## Parte IV: Evolución mensual de ingresos")
 
 if "year_month" in df_filtered.columns:
-    month_col = "year_month"
-elif "month_name" in df_filtered.columns:
-    month_col = "month_name"
-elif "month" in df_filtered.columns:
-    month_col = "month"
-else:
-    month_col = None
-
-if month_col:
     monthly_revenue = (
         df_filtered
-        .groupby(month_col, as_index=False)
+        .dropna(subset=["year_month"])
+        .groupby("year_month", as_index=False)
         .agg(
             total_bookings=("booking_id", "count"),
             total_revenue=("booking_value", "sum")
         )
-        .sort_values(month_col)
+        .sort_values("year_month")
     )
 
     monthly_chart = (
         alt.Chart(monthly_revenue)
         .mark_line(point=True)
         .encode(
-            x=alt.X(f"{month_col}:N", title="Month"),
-            y=alt.Y("total_revenue:Q", title="Total revenue"),
+            x=alt.X("year_month:N", title="Mes"),
+            y=alt.Y("total_revenue:Q", title="Ingresos totales"),
             tooltip=[
-                month_col,
+                "year_month",
                 alt.Tooltip("total_bookings:Q", format=","),
                 alt.Tooltip("total_revenue:Q", format="$,.2f")
             ]
@@ -240,8 +266,27 @@ if month_col:
     )
 
     st.altair_chart(monthly_chart, use_container_width=True)
+
+    if not monthly_revenue.empty:
+        best_month = monthly_revenue.sort_values("total_revenue", ascending=False).iloc[0]
+        worst_month = monthly_revenue.sort_values("total_revenue", ascending=True).iloc[0]
+
+        st.success(
+            f"""
+            El mes con mayores ingresos fue **{best_month['year_month']}**, con 
+            **${best_month['total_revenue']:,.0f}**. 
+            
+            El mes con menores ingresos fue **{worst_month['year_month']}**, con 
+            **${worst_month['total_revenue']:,.0f}**.
+            """
+        )
 else:
-    st.warning("No se encontró una columna de mes en dim_date.")
+    st.warning(
+        """
+        No se encontró una columna de fecha válida. Revisa si en `dim_date.csv`
+        existe alguna columna llamada `full_date`, `date` o `booking_date`.
+        """
+    )
 
 st.divider()
 
@@ -288,10 +333,18 @@ if "pickup_location" in df_filtered.columns and "drop_location" in df_filtered.c
 
     st.altair_chart(routes_chart, use_container_width=True)
 
-    st.dataframe(
-        top_routes,
-        use_container_width=True
-    )
+    if not top_routes.empty:
+        best_route = top_routes.iloc[0]
+
+        st.info(
+            f"""
+            La ruta más rentable es **{best_route['route']}**, con ingresos totales de 
+            **${best_route['total_revenue']:,.0f}** y 
+            **{best_route['total_bookings']:,.0f} reservas**.
+            """
+        )
+
+    st.dataframe(top_routes, use_container_width=True)
 
 else:
     st.warning("No se encontraron columnas de pickup_location y drop_location.")
@@ -338,10 +391,17 @@ vehicle_ranking["failure_rate_pct"] = (
 
 vehicle_ranking = vehicle_ranking.sort_values("failure_rate_pct", ascending=False)
 
-st.dataframe(
-    vehicle_ranking,
-    use_container_width=True
-)
+st.dataframe(vehicle_ranking, use_container_width=True)
+
+if not vehicle_ranking.empty:
+    highest_failure = vehicle_ranking.iloc[0]
+
+    st.warning(
+        f"""
+        El tipo de vehículo con mayor tasa de fallas es **{highest_failure['vehicle_type']}**, 
+        con una tasa de **{highest_failure['failure_rate_pct']:.2f}%**.
+        """
+    )
 
 st.divider()
 
@@ -383,6 +443,20 @@ bubble_chart = (
 )
 
 st.altair_chart(bubble_chart, use_container_width=True)
+
+if not bubble_data.empty:
+    highest_revenue = bubble_data.sort_values("total_revenue", ascending=False).iloc[0]
+    highest_wait = bubble_data.sort_values("avg_ctat", ascending=False).iloc[0]
+
+    st.info(
+        f"""
+        El vehículo que más ingresos genera es **{highest_revenue['vehicle_type']}**, con 
+        **${highest_revenue['total_revenue']:,.0f}**. 
+        
+        Por otro lado, el vehículo con mayor tiempo promedio de espera del cliente es 
+        **{highest_wait['vehicle_type']}**, con **{highest_wait['avg_ctat']:.2f} minutos** promedio.
+        """
+    )
 
 st.divider()
 
