@@ -6,9 +6,6 @@ import altair as alt
 from pathlib import Path
 
 
-# =========================
-# CONFIGURACIÓN GENERAL
-# =========================
 st.set_page_config(
     page_title="Uber Ride Analytics 2024",
     page_icon="🚗",
@@ -18,9 +15,6 @@ st.set_page_config(
 DATA_DIR = Path(__file__).parent / "data"
 
 
-# =========================
-# CARGA DE DATOS
-# =========================
 @st.cache_data
 def load_data():
     fact = pd.read_csv(DATA_DIR / "fact_bookings.csv")
@@ -40,14 +34,14 @@ def load_data():
     )
 
     date_col = None
-    for col in ["full_date", "date", "booking_date"]:
+    for col in ["fecha", "full_date", "date", "booking_date"]:
         if col in df.columns:
             date_col = col
             break
 
     if date_col:
         df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-        df["year_month"] = df[date_col].dt.to_period("M").astype(str)
+        df["mes"] = df[date_col].dt.to_period("M").dt.to_timestamp()
 
     return df
 
@@ -55,27 +49,32 @@ def load_data():
 df = load_data()
 
 
-# =========================
-# ENCABEZADO
-# =========================
 st.title("🚗 Uber Ride Analytics 2024")
 
 st.markdown(
     """
-    Dashboard OLAP construido a partir de un modelo dimensional en AWS Aurora PostgreSQL.
-    
-    Esta versión funciona de forma **offline**, leyendo archivos CSV exportados desde el Data Warehouse.
-    El objetivo es analizar cómo las cancelaciones, los tiempos de espera y el tipo de vehículo impactan
-    el desempeño operativo y los ingresos de Uber durante 2024.
-    """
+## Objetivo del análisis
+
+Este dashboard presenta un análisis OLAP del desempeño operativo y financiero de Uber durante 2024,
+utilizando información exportada desde un Data Warehouse construido en AWS Aurora PostgreSQL.
+
+### Pregunta analítica
+
+**¿Cómo impactan las cancelaciones, los tiempos de espera y el tipo de vehículo en el desempeño operativo y los ingresos de Uber durante 2024?**
+
+### Enfoque del análisis
+
+El análisis se enfoca en identificar patrones relacionados con reservas completadas, cancelaciones,
+fallas operativas, ingresos, tiempos de espera, rutas más rentables y desempeño por tipo de vehículo.
+
+La versión publicada del dashboard funciona de forma **offline**, leyendo archivos CSV exportados desde
+el modelo dimensional del Data Warehouse.
+"""
 )
 
 st.divider()
 
 
-# =========================
-# FILTROS
-# =========================
 st.sidebar.header("Filtros del dashboard")
 
 vehicle_options = ["Todos"] + sorted(df["vehicle_type"].dropna().unique())
@@ -100,14 +99,10 @@ if status_filter != "Todos":
     df_filtered = df_filtered[df_filtered["booking_status"] == status_filter]
 
 
-# =========================
-# PARTE I — KPIs GENERALES
-# =========================
-st.markdown("## Parte I: Desempeño general")
+st.markdown("## Desempeño general")
 
 total_bookings = len(df_filtered)
 total_revenue = df_filtered["booking_value"].sum()
-
 completed_bookings = df_filtered["is_completed"].sum()
 
 failed_bookings = (
@@ -129,23 +124,27 @@ col4.metric("Failure rate", f"{failure_rate:.2%}")
 
 st.info(
     f"""
-    Durante 2024 se registraron **{total_bookings:,.0f} reservas** con ingresos totales de 
-    **${total_revenue:,.0f}**. 
-    
-    La tasa de finalización fue de **{completion_rate:.2%}**, mientras que la tasa de fallas fue de 
-    **{failure_rate:.2%}**. Esto significa que aproximadamente **{failed_bookings:,.0f} reservas**
-    no terminaron como viajes completados, ya sea por cancelaciones del cliente, cancelaciones del conductor,
-    falta de conductor o viajes incompletos.
-    """
+### Interpretación
+
+Durante 2024 se registraron **{total_bookings:,.0f} reservas**, generando ingresos por
+**${total_revenue:,.0f}**.
+
+La tasa de finalización fue de **{completion_rate:.2%}**, lo que indica qué proporción de las reservas
+culminaron exitosamente como viajes completados.
+
+Por otro lado, la tasa de fallas fue de **{failure_rate:.2%}**, equivalente a
+**{failed_bookings:,.0f} reservas** que no se completaron debido a cancelaciones del cliente,
+cancelaciones del conductor, falta de conductor disponible o viajes incompletos.
+
+Este resultado permite evaluar la eficiencia operativa general de la plataforma, ya que una proporción
+alta de viajes no completados representa pérdida de oportunidades de ingreso.
+"""
 )
 
 st.divider()
 
 
-# =========================
-# PARTE II — ESTADOS DE VIAJE
-# =========================
-st.markdown("## Parte II: Distribución de estados de viaje")
+st.markdown("## Distribución de estados de viaje")
 
 status_summary = (
     df_filtered
@@ -167,22 +166,24 @@ status_chart = (
 
 st.altair_chart(status_chart, use_container_width=True)
 
-top_status = status_summary.iloc[0]
+if not status_summary.empty:
+    top_status = status_summary.iloc[0]
+    st.info(
+        f"""
+### Interpretación
 
-st.success(
-    f"""
-    El estado de viaje más frecuente es **{top_status['booking_status']}**, con 
-    **{top_status['total_bookings']:,.0f} reservas**.
-    """
-)
+El estado de viaje más frecuente es **{top_status['booking_status']}**, con
+**{top_status['total_bookings']:,.0f} reservas**.
+
+Esta distribución permite identificar qué parte del volumen total corresponde a viajes completados
+y qué proporción se concentra en cancelaciones, falta de conductor o viajes incompletos.
+"""
+    )
 
 st.divider()
 
 
-# =========================
-# PARTE III — INGRESOS POR VEHÍCULO
-# =========================
-st.markdown("## Parte III: Ingresos por tipo de vehículo")
+st.markdown("## Ingresos por tipo de vehículo")
 
 vehicle_revenue = (
     df_filtered
@@ -219,13 +220,17 @@ st.altair_chart(vehicle_chart, use_container_width=True)
 
 if not vehicle_revenue.empty:
     top_vehicle = vehicle_revenue.iloc[0]
-
     st.info(
         f"""
-        El tipo de vehículo con mayores ingresos es **{top_vehicle['vehicle_type']}**, con 
-        **${top_vehicle['total_revenue']:,.0f}** generados en 
-        **{top_vehicle['total_bookings']:,.0f} reservas**.
-        """
+### Interpretación
+
+El tipo de vehículo con mayores ingresos es **{top_vehicle['vehicle_type']}**, con
+**${top_vehicle['total_revenue']:,.0f}** generados en **{top_vehicle['total_bookings']:,.0f} reservas**.
+
+Este análisis permite identificar qué categorías de vehículo tienen mayor peso financiero dentro de la
+operación. Sin embargo, un vehículo con altos ingresos no necesariamente es el más eficiente si también
+presenta tiempos de espera elevados o una alta tasa de fallas.
+"""
     )
 
 st.dataframe(vehicle_revenue, use_container_width=True)
@@ -233,68 +238,102 @@ st.dataframe(vehicle_revenue, use_container_width=True)
 st.divider()
 
 
-# =========================
-# PARTE IV — EVOLUCIÓN MENSUAL
-# =========================
-st.markdown("## Parte IV: Evolución mensual de ingresos")
+st.markdown("## Evolución mensual de ingresos")
 
-if "year_month" in df_filtered.columns:
+if "mes" in df_filtered.columns:
     monthly_revenue = (
         df_filtered
-        .dropna(subset=["year_month"])
-        .groupby("year_month", as_index=False)
+        .dropna(subset=["mes"])
+        .groupby("mes", as_index=False)
         .agg(
             total_bookings=("booking_id", "count"),
+            completed_bookings=("is_completed", "sum"),
+            cancelled_customer=("is_cancelled_customer", "sum"),
+            cancelled_driver=("is_cancelled_driver", "sum"),
+            no_driver_found=("is_no_driver_found", "sum"),
             total_revenue=("booking_value", "sum")
         )
-        .sort_values("year_month")
+        .sort_values("mes")
     )
 
-    monthly_chart = (
+    monthly_revenue["operational_failures"] = (
+        monthly_revenue["cancelled_customer"]
+        + monthly_revenue["cancelled_driver"]
+        + monthly_revenue["no_driver_found"]
+    )
+
+    monthly_revenue["completion_rate_pct"] = (
+        monthly_revenue["completed_bookings"] / monthly_revenue["total_bookings"] * 100
+    )
+
+    monthly_revenue["operational_failure_rate_pct"] = (
+        monthly_revenue["operational_failures"] / monthly_revenue["total_bookings"] * 100
+    )
+
+    monthly_revenue["previous_month_revenue"] = monthly_revenue["total_revenue"].shift(1)
+
+    monthly_revenue["revenue_growth_pct"] = (
+        (monthly_revenue["total_revenue"] - monthly_revenue["previous_month_revenue"])
+        / monthly_revenue["previous_month_revenue"]
+        * 100
+    )
+
+    revenue_line = (
         alt.Chart(monthly_revenue)
         .mark_line(point=True)
         .encode(
-            x=alt.X("year_month:N", title="Mes"),
+            x=alt.X("mes:T", title="Mes"),
             y=alt.Y("total_revenue:Q", title="Ingresos totales"),
             tooltip=[
-                "year_month",
-                alt.Tooltip("total_bookings:Q", format=","),
-                alt.Tooltip("total_revenue:Q", format="$,.2f")
-            ]
+                alt.Tooltip("mes:T", title="Mes"),
+                alt.Tooltip("total_bookings:Q", title="Reservas", format=","),
+                alt.Tooltip("completed_bookings:Q", title="Reservas completadas", format=","),
+                alt.Tooltip("completion_rate_pct:Q", title="Completion rate %", format=".2f"),
+                alt.Tooltip("operational_failures:Q", title="Fallas operativas", format=","),
+                alt.Tooltip("operational_failure_rate_pct:Q", title="Failure rate %", format=".2f"),
+                alt.Tooltip("total_revenue:Q", title="Revenue", format="$,.2f"),
+                alt.Tooltip("revenue_growth_pct:Q", title="Growth %", format=".2f"),
+            ],
         )
-        .properties(height=400)
+        .properties(height=420)
     )
 
-    st.altair_chart(monthly_chart, use_container_width=True)
+    st.altair_chart(revenue_line, use_container_width=True)
 
     if not monthly_revenue.empty:
         best_month = monthly_revenue.sort_values("total_revenue", ascending=False).iloc[0]
         worst_month = monthly_revenue.sort_values("total_revenue", ascending=True).iloc[0]
+        avg_growth = monthly_revenue["revenue_growth_pct"].dropna().mean()
 
-        st.success(
+        st.info(
             f"""
-            El mes con mayores ingresos fue **{best_month['year_month']}**, con 
-            **${best_month['total_revenue']:,.0f}**. 
-            
-            El mes con menores ingresos fue **{worst_month['year_month']}**, con 
-            **${worst_month['total_revenue']:,.0f}**.
-            """
+### Interpretación
+
+La evolución mensual permite analizar la estabilidad de los ingresos durante 2024.
+
+El mes con mayores ingresos fue **{best_month['mes'].strftime('%Y-%m')}**, con
+**${best_month['total_revenue']:,.0f}**. El mes con menores ingresos fue
+**{worst_month['mes'].strftime('%Y-%m')}**, con **${worst_month['total_revenue']:,.0f}**.
+
+El crecimiento mensual promedio fue de **{avg_growth:.2f}%**. Esta métrica permite identificar si el
+desempeño financiero fue creciente, estable o volátil a lo largo del año.
+"""
         )
+
+    st.dataframe(monthly_revenue, use_container_width=True)
+
 else:
     st.warning(
         """
-        No se encontró una columna de fecha válida. Revisa si en `dim_date.csv`
-        existe alguna columna llamada `full_date`, `date` o `booking_date`.
-        """
+No se encontró una columna de fecha válida. Revisa si en `dim_date.csv`
+existe una columna llamada `fecha`, `full_date`, `date` o `booking_date`.
+"""
     )
 
 st.divider()
 
 
-# =========================
-# PARTE V — TOP RUTAS MÁS RENTABLES
-# =========================
-st.markdown("## Parte V: Top rutas más rentables")
+st.markdown("## Top rutas más rentables")
 
 if "pickup_location" in df_filtered.columns and "drop_location" in df_filtered.columns:
     df_filtered["route"] = (
@@ -335,13 +374,17 @@ if "pickup_location" in df_filtered.columns and "drop_location" in df_filtered.c
 
     if not top_routes.empty:
         best_route = top_routes.iloc[0]
-
         st.info(
             f"""
-            La ruta más rentable es **{best_route['route']}**, con ingresos totales de 
-            **${best_route['total_revenue']:,.0f}** y 
-            **{best_route['total_bookings']:,.0f} reservas**.
-            """
+### Interpretación
+
+La ruta más rentable es **{best_route['route']}**, con ingresos totales de
+**${best_route['total_revenue']:,.0f}** y **{best_route['total_bookings']:,.0f} reservas**.
+
+Este resultado permite identificar corredores o trayectos con mayor valor económico para la plataforma,
+lo cual puede apoyar decisiones relacionadas con disponibilidad de conductores, cobertura y estrategia
+operativa por zona.
+"""
         )
 
     st.dataframe(top_routes, use_container_width=True)
@@ -352,10 +395,7 @@ else:
 st.divider()
 
 
-# =========================
-# PARTE VI — RANKING OPERATIVO POR VEHÍCULO
-# =========================
-st.markdown("## Parte VI: Ranking operativo por tipo de vehículo")
+st.markdown("## Ranking operativo por tipo de vehículo")
 
 vehicle_ranking = (
     df_filtered
@@ -395,75 +435,128 @@ st.dataframe(vehicle_ranking, use_container_width=True)
 
 if not vehicle_ranking.empty:
     highest_failure = vehicle_ranking.iloc[0]
-
-    st.warning(
-        f"""
-        El tipo de vehículo con mayor tasa de fallas es **{highest_failure['vehicle_type']}**, 
-        con una tasa de **{highest_failure['failure_rate_pct']:.2f}%**.
-        """
-    )
-
-st.divider()
-
-
-# =========================
-# PARTE VII — IMPACTO ESPERA / FALLAS / INGRESOS
-# =========================
-st.markdown("## Parte VII: Impacto de tiempos de espera, fallas e ingresos")
-
-st.markdown(
-    """
-    Esta visualización resume la pregunta analítica principal del proyecto:
-    
-    **¿Cómo impactan las cancelaciones, los tiempos de espera y el tipo de vehículo
-    en el desempeño operativo y los ingresos de Uber durante 2024?**
-    """
-)
-
-bubble_data = vehicle_ranking.copy()
-
-bubble_chart = (
-    alt.Chart(bubble_data)
-    .mark_circle(opacity=0.75)
-    .encode(
-        x=alt.X("avg_ctat:Q", title="Avg CTAT - Customer Wait Time"),
-        y=alt.Y("failure_rate_pct:Q", title="Failure Rate %"),
-        size=alt.Size("total_revenue:Q", title="Total Revenue"),
-        color=alt.Color("vehicle_type:N", title="Vehicle Type"),
-        tooltip=[
-            "vehicle_type",
-            alt.Tooltip("avg_ctat:Q", format=".2f"),
-            alt.Tooltip("avg_vtat:Q", format=".2f"),
-            alt.Tooltip("failure_rate_pct:Q", format=".2f"),
-            alt.Tooltip("total_revenue:Q", format="$,.2f"),
-            alt.Tooltip("total_bookings:Q", format=",")
-        ]
-    )
-    .properties(height=500)
-)
-
-st.altair_chart(bubble_chart, use_container_width=True)
-
-if not bubble_data.empty:
-    highest_revenue = bubble_data.sort_values("total_revenue", ascending=False).iloc[0]
-    highest_wait = bubble_data.sort_values("avg_ctat", ascending=False).iloc[0]
+    best_completion = vehicle_ranking.sort_values("completion_rate_pct", ascending=False).iloc[0]
 
     st.info(
         f"""
-        El vehículo que más ingresos genera es **{highest_revenue['vehicle_type']}**, con 
-        **${highest_revenue['total_revenue']:,.0f}**. 
-        
-        Por otro lado, el vehículo con mayor tiempo promedio de espera del cliente es 
-        **{highest_wait['vehicle_type']}**, con **{highest_wait['avg_ctat']:.2f} minutos** promedio.
-        """
+### Interpretación
+
+El tipo de vehículo con mayor tasa de fallas es **{highest_failure['vehicle_type']}**, con
+**{highest_failure['failure_rate_pct']:.2f}%**. Esto significa que una proporción importante de sus
+reservas no termina como viaje completado.
+
+Por otro lado, el vehículo con mejor tasa de finalización es **{best_completion['vehicle_type']}**, con
+**{best_completion['completion_rate_pct']:.2f}%**.
+
+Esta comparación permite distinguir entre vehículos con alto potencial financiero y vehículos con mejor
+desempeño operativo.
+"""
     )
 
 st.divider()
 
 
-# =========================
-# DATASET FINAL
-# =========================
+st.markdown("## Impacto de tiempos de espera, fallas e ingresos")
+
+st.markdown(
+    """
+Esta sección resume la pregunta analítica principal del proyecto:
+
+**¿Cómo impactan las cancelaciones, los tiempos de espera y el tipo de vehículo
+en el desempeño operativo y los ingresos de Uber durante 2024?**
+"""
+)
+
+impact_data = vehicle_ranking.copy()
+impact_data = impact_data.sort_values("failure_rate_pct", ascending=False)
+
+impact_chart = (
+    alt.Chart(impact_data)
+    .mark_bar()
+    .encode(
+        x=alt.X("failure_rate_pct:Q", title="Failure Rate %"),
+        y=alt.Y("vehicle_type:N", sort="-x", title="Tipo de vehículo"),
+        tooltip=[
+            "vehicle_type",
+            alt.Tooltip("failure_rate_pct:Q", format=".2f"),
+            alt.Tooltip("avg_ctat:Q", format=".2f"),
+            alt.Tooltip("avg_vtat:Q", format=".2f"),
+            alt.Tooltip("total_revenue:Q", format="$,.2f"),
+            alt.Tooltip("total_bookings:Q", format=",")
+        ],
+    )
+    .properties(height=420)
+)
+
+st.altair_chart(impact_chart, use_container_width=True)
+
+if not impact_data.empty:
+    highest_failure = impact_data.iloc[0]
+    highest_revenue = impact_data.sort_values("total_revenue", ascending=False).iloc[0]
+    highest_wait = impact_data.sort_values("avg_ctat", ascending=False).iloc[0]
+
+    st.info(
+        f"""
+### Interpretación ejecutiva
+
+El tipo de vehículo con mayor tasa de fallas es **{highest_failure['vehicle_type']}**, con
+**{highest_failure['failure_rate_pct']:.2f}%**. Esto indica que, de cada 100 reservas de este tipo
+de vehículo, aproximadamente **{highest_failure['failure_rate_pct']:.0f}** no terminan como viajes
+completados.
+
+El vehículo con mayor generación de ingresos es **{highest_revenue['vehicle_type']}**, con
+**${highest_revenue['total_revenue']:,.0f}**. Esto permite diferenciar entre vehículos relevantes
+por ingresos y vehículos con mayores problemas operativos.
+
+El mayor tiempo promedio de espera del cliente corresponde a **{highest_wait['vehicle_type']}**, con
+**{highest_wait['avg_ctat']:.2f} minutos** promedio. Si este vehículo también presenta una tasa alta
+de fallas, puede considerarse un punto crítico de operación.
+
+En conjunto, el análisis muestra que el desempeño de Uber no debe evaluarse únicamente por ingresos,
+sino también por eficiencia operativa, tiempos de espera y capacidad para convertir reservas en viajes
+completados.
+"""
+    )
+
+st.dataframe(
+    impact_data[
+        [
+            "vehicle_type",
+            "total_bookings",
+            "total_revenue",
+            "avg_vtat",
+            "avg_ctat",
+            "failure_rate_pct",
+            "completion_rate_pct"
+        ]
+    ],
+    use_container_width=True
+)
+
+st.divider()
+
+
+st.markdown("## Conclusión general")
+
+st.success(
+    """
+El análisis muestra que el desempeño de Uber durante 2024 no depende únicamente del volumen de reservas
+o de los ingresos generados, sino también de la eficiencia operativa con la que se atienden las solicitudes.
+
+Los tipos de vehículo con mayores ingresos no necesariamente son los más eficientes, por lo que es necesario
+evaluar simultáneamente ingresos, tiempos de espera y tasa de fallas.
+
+Las cancelaciones, la falta de conductor disponible y los viajes incompletos representan factores clave que
+reducen la conversión de reservas en viajes completados y, por lo tanto, afectan el desempeño financiero.
+
+Desde una perspectiva OLAP, el modelo dimensional permite analizar el negocio por tiempo, vehículo, ubicación,
+método de pago y estado de reserva, facilitando la identificación de áreas de oportunidad operativa y financiera.
+"""
+)
+
+st.divider()
+
+
 st.markdown("## Exploración del dataset integrado")
 
 st.dataframe(
