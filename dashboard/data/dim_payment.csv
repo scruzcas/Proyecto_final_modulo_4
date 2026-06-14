@@ -1,0 +1,7 @@
+﻿payment_key,payment_method
+1,Cash
+2,Credit Card
+3,Debit Card
+4,No aplica
+5,UPI
+6,Uber Wallet

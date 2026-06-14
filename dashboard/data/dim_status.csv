@@ -1,0 +1,15 @@
+﻿status_key,booking_status,cancellation_reason_customer,cancellation_reason_driver,incomplete_reason
+1,Cancelled by Customer,AC is not working,No aplica,No aplica
+2,Cancelled by Customer,Change of plans,No aplica,No aplica
+3,Cancelled by Customer,Driver asked to cancel,No aplica,No aplica
+4,Cancelled by Customer,Driver is not moving towards pickup location,No aplica,No aplica
+5,Cancelled by Customer,Wrong Address,No aplica,No aplica
+6,Cancelled by Driver,No aplica,Customer related issue,No aplica
+7,Cancelled by Driver,No aplica,More than permitted people in there,No aplica
+8,Cancelled by Driver,No aplica,Personal & Car related issues,No aplica
+9,Cancelled by Driver,No aplica,The customer was coughing/sick,No aplica
+10,Completed,No aplica,No aplica,No aplica
+11,Incomplete,No aplica,No aplica,Customer Demand
+12,Incomplete,No aplica,No aplica,Other Issue
+13,Incomplete,No aplica,No aplica,Vehicle Breakdown
+14,No Driver Found,No aplica,No aplica,No aplica
