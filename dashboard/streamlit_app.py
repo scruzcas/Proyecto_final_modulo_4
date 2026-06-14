@@ -135,9 +135,6 @@ culminaron exitosamente como viajes completados.
 Por otro lado, la tasa de fallas fue de **{failure_rate:.2%}**, equivalente a
 **{failed_bookings:,.0f} reservas** que no se completaron debido a cancelaciones del cliente,
 cancelaciones del conductor, falta de conductor disponible o viajes incompletos.
-
-Este resultado permite evaluar la eficiencia operativa general de la plataforma, ya que una proporción
-alta de viajes no completados representa pérdida de oportunidades de ingreso.
 """
 )
 
@@ -313,8 +310,7 @@ El mes con mayores ingresos fue **{best_month['mes'].strftime('%Y-%m')}**, con
 **${best_month['total_revenue']:,.0f}**. El mes con menores ingresos fue
 **{worst_month['mes'].strftime('%Y-%m')}**, con **${worst_month['total_revenue']:,.0f}**.
 
-El crecimiento mensual promedio fue de **{avg_growth:.2f}%**. Esta métrica permite identificar si el
-desempeño financiero fue creciente, estable o volátil a lo largo del año.
+El crecimiento mensual promedio fue de **{avg_growth:.2f}%**.
 """
         )
 
@@ -377,9 +373,7 @@ if "pickup_location" in df_filtered.columns and "drop_location" in df_filtered.c
 La ruta más rentable es **{best_route['route']}**, con ingresos totales de
 **${best_route['total_revenue']:,.0f}** y **{best_route['total_bookings']:,.0f} reservas**.
 
-Este resultado permite identificar corredores o trayectos con mayor valor económico para la plataforma,
-lo cual puede apoyar decisiones relacionadas con disponibilidad de conductores, cobertura y estrategia
-operativa por zona.
+Este resultado permite identificar corredores o trayectos con mayor valor económico para la plataforma.
 """
         )
 
@@ -423,45 +417,76 @@ vehicle_ranking["failure_rate_pct"] = (
     vehicle_ranking["failed_bookings"] / vehicle_ranking["total_bookings"] * 100
 )
 
-vehicle_ranking = vehicle_ranking.sort_values("failure_rate_pct", ascending=False)
-
-ranking_chart = (
-    alt.Chart(vehicle_ranking)
-    .mark_bar()
-    .encode(
-        x=alt.X("failure_rate_pct:Q", title="Failure Rate %"),
-        y=alt.Y("vehicle_type:N", sort="-x", title="Tipo de vehículo"),
-        tooltip=[
-            "vehicle_type",
-            alt.Tooltip("total_bookings:Q", format=","),
-            alt.Tooltip("completion_rate_pct:Q", format=".2f"),
-            alt.Tooltip("failure_rate_pct:Q", format=".2f"),
-            alt.Tooltip("total_revenue:Q", format="$,.2f"),
-            alt.Tooltip("avg_ctat:Q", format=".2f")
-        ]
-    )
-    .properties(height=380)
+vehicle_ranking["revenue_share_pct"] = (
+    vehicle_ranking["total_revenue"] / vehicle_ranking["total_revenue"].sum() * 100
 )
 
-st.altair_chart(ranking_chart, use_container_width=True)
+ranking_long = vehicle_ranking.melt(
+    id_vars=["vehicle_type"],
+    value_vars=["completion_rate_pct", "failure_rate_pct", "revenue_share_pct"],
+    var_name="metric",
+    value_name="value"
+)
+
+ranking_long["metric"] = ranking_long["metric"].replace(
+    {
+        "completion_rate_pct": "Completion rate",
+        "failure_rate_pct": "Failure rate",
+        "revenue_share_pct": "Revenue share"
+    }
+)
+
+ranking_heatmap = (
+    alt.Chart(ranking_long)
+    .mark_rect()
+    .encode(
+        x=alt.X("metric:N", title="Métrica"),
+        y=alt.Y("vehicle_type:N", title="Tipo de vehículo"),
+        color=alt.Color("value:Q", title="Valor %"),
+        tooltip=[
+            "vehicle_type",
+            "metric",
+            alt.Tooltip("value:Q", format=".2f")
+        ]
+    )
+    .properties(height=360)
+)
+
+ranking_text = (
+    alt.Chart(ranking_long)
+    .mark_text()
+    .encode(
+        x=alt.X("metric:N"),
+        y=alt.Y("vehicle_type:N"),
+        text=alt.Text("value:Q", format=".1f"),
+        tooltip=[
+            "vehicle_type",
+            "metric",
+            alt.Tooltip("value:Q", format=".2f")
+        ]
+    )
+)
+
+st.altair_chart(ranking_heatmap + ranking_text, use_container_width=True)
 
 if not vehicle_ranking.empty:
-    highest_failure = vehicle_ranking.iloc[0]
+    highest_failure = vehicle_ranking.sort_values("failure_rate_pct", ascending=False).iloc[0]
     best_completion = vehicle_ranking.sort_values("completion_rate_pct", ascending=False).iloc[0]
+    highest_revenue_share = vehicle_ranking.sort_values("revenue_share_pct", ascending=False).iloc[0]
 
     st.info(
         f"""
 ### Interpretación
 
-El tipo de vehículo con mayor tasa de fallas es **{highest_failure['vehicle_type']}**, con
-**{highest_failure['failure_rate_pct']:.2f}%**. Esto significa que una proporción importante de sus
-reservas no termina como viaje completado.
+El ranking operativo compara tres dimensiones: tasa de finalización, tasa de fallas y participación
+en ingresos.
 
-Por otro lado, el vehículo con mejor tasa de finalización es **{best_completion['vehicle_type']}**, con
-**{best_completion['completion_rate_pct']:.2f}%**.
+El vehículo con mayor tasa de fallas es **{highest_failure['vehicle_type']}**, con
+**{highest_failure['failure_rate_pct']:.2f}%**. El vehículo con mejor tasa de finalización es
+**{best_completion['vehicle_type']}**, con **{best_completion['completion_rate_pct']:.2f}%**.
 
-Esta comparación permite distinguir entre vehículos con alto potencial financiero y vehículos con mejor
-desempeño operativo.
+Por otro lado, el vehículo con mayor participación en ingresos es **{highest_revenue_share['vehicle_type']}**,
+con **{highest_revenue_share['revenue_share_pct']:.2f}%** del revenue total.
 """
     )
 
@@ -472,68 +497,122 @@ st.markdown("## Impacto de tiempos de espera, fallas e ingresos")
 
 st.markdown(
     """
-Esta sección responde directamente la pregunta analítica principal:
+Esta sección responde directamente la pregunta analítica principal.
 
-**¿Cómo impactan las cancelaciones, los tiempos de espera y el tipo de vehículo
-en el desempeño operativo y los ingresos de Uber durante 2024?**
-
-Para hacerlo, se comparan tres dimensiones clave: tiempo promedio de espera del cliente,
-tasa de fallas e ingresos totales por tipo de vehículo.
+Para evaluar el impacto, se analizan tres componentes: tiempos de espera, fallas operativas e ingresos.
 """
 )
 
 impact_data = vehicle_ranking.copy()
 
-impact_long = impact_data.melt(
+st.markdown("### 1. Tiempos de espera por tipo de vehículo")
+
+wait_long = impact_data.melt(
     id_vars=["vehicle_type"],
-    value_vars=["failure_rate_pct", "completion_rate_pct"],
-    var_name="metric",
-    value_name="percentage"
+    value_vars=["avg_vtat", "avg_ctat"],
+    var_name="wait_metric",
+    value_name="minutes"
 )
 
-impact_long["metric"] = impact_long["metric"].replace(
+wait_long["wait_metric"] = wait_long["wait_metric"].replace(
     {
-        "failure_rate_pct": "Failure rate",
-        "completion_rate_pct": "Completion rate"
+        "avg_vtat": "Vehicle arrival time",
+        "avg_ctat": "Customer wait time"
     }
 )
 
-impact_chart = (
-    alt.Chart(impact_long)
-    .mark_bar()
-    .encode(
-        x=alt.X("percentage:Q", title="Porcentaje"),
-        y=alt.Y("vehicle_type:N", title="Tipo de vehículo"),
-        color=alt.Color("metric:N", title="Métrica"),
-        tooltip=[
-            "vehicle_type",
-            "metric",
-            alt.Tooltip("percentage:Q", format=".2f")
-        ]
-    )
-    .properties(height=420)
-)
-
-st.altair_chart(impact_chart, use_container_width=True)
-
 wait_chart = (
-    alt.Chart(impact_data.sort_values("avg_ctat", ascending=False))
+    alt.Chart(wait_long)
     .mark_bar()
     .encode(
-        x=alt.X("avg_ctat:Q", title="Avg CTAT - Customer Wait Time"),
-        y=alt.Y("vehicle_type:N", sort="-x", title="Tipo de vehículo"),
+        x=alt.X("minutes:Q", title="Minutos promedio"),
+        y=alt.Y("vehicle_type:N", title="Tipo de vehículo"),
+        color=alt.Color("wait_metric:N", title="Métrica"),
         tooltip=[
             "vehicle_type",
-            alt.Tooltip("avg_ctat:Q", format=".2f"),
-            alt.Tooltip("avg_vtat:Q", format=".2f"),
-            alt.Tooltip("failure_rate_pct:Q", format=".2f"),
-            alt.Tooltip("total_revenue:Q", format="$,.2f")
+            "wait_metric",
+            alt.Tooltip("minutes:Q", format=".2f")
         ]
     )
     .properties(height=380)
 )
 
 st.altair_chart(wait_chart, use_container_width=True)
+
+
+st.markdown("### 2. Composición de fallas operativas")
+
+failure_components = impact_data.melt(
+    id_vars=["vehicle_type"],
+    value_vars=[
+        "cancelled_customer",
+        "cancelled_driver",
+        "no_driver_found",
+        "incomplete_bookings"
+    ],
+    var_name="failure_type",
+    value_name="bookings"
+)
+
+failure_components["failure_type"] = failure_components["failure_type"].replace(
+    {
+        "cancelled_customer": "Cancelled by customer",
+        "cancelled_driver": "Cancelled by driver",
+        "no_driver_found": "No driver found",
+        "incomplete_bookings": "Incomplete"
+    }
+)
+
+failure_component_chart = (
+    alt.Chart(failure_components)
+    .mark_bar()
+    .encode(
+        x=alt.X("bookings:Q", title="Reservas fallidas"),
+        y=alt.Y("vehicle_type:N", title="Tipo de vehículo"),
+        color=alt.Color("failure_type:N", title="Tipo de falla"),
+        tooltip=[
+            "vehicle_type",
+            "failure_type",
+            alt.Tooltip("bookings:Q", format=",")
+        ]
+    )
+    .properties(height=420)
+)
+
+st.altair_chart(failure_component_chart, use_container_width=True)
+
+
+st.markdown("### 3. Relación entre ingresos y tasa de fallas")
+
+revenue_failure_chart = (
+    alt.Chart(impact_data)
+    .mark_circle(size=250, opacity=0.8)
+    .encode(
+        x=alt.X("total_revenue:Q", title="Total revenue"),
+        y=alt.Y("failure_rate_pct:Q", title="Failure rate %"),
+        color=alt.Color("vehicle_type:N", title="Tipo de vehículo"),
+        tooltip=[
+            "vehicle_type",
+            alt.Tooltip("total_revenue:Q", format="$,.2f"),
+            alt.Tooltip("failure_rate_pct:Q", format=".2f"),
+            alt.Tooltip("avg_ctat:Q", format=".2f"),
+            alt.Tooltip("total_bookings:Q", format=",")
+        ]
+    )
+    .properties(height=420)
+)
+
+labels = (
+    alt.Chart(impact_data)
+    .mark_text(align="left", dx=8)
+    .encode(
+        x=alt.X("total_revenue:Q"),
+        y=alt.Y("failure_rate_pct:Q"),
+        text="vehicle_type:N"
+    )
+)
+
+st.altair_chart(revenue_failure_chart + labels, use_container_width=True)
 
 if not impact_data.empty:
     highest_failure = impact_data.sort_values("failure_rate_pct", ascending=False).iloc[0]
@@ -544,10 +623,9 @@ if not impact_data.empty:
         f"""
 ### Interpretación
 
-El tipo de vehículo con mayor tasa de fallas es **{highest_failure['vehicle_type']}**, con
-**{highest_failure['failure_rate_pct']:.2f}%**. Esto indica que, de cada 100 reservas de este tipo
-de vehículo, aproximadamente **{highest_failure['failure_rate_pct']:.0f}** no terminan como viajes
-completados.
+El vehículo con mayor tasa de fallas es **{highest_failure['vehicle_type']}**, con
+**{highest_failure['failure_rate_pct']:.2f}%**. Esto indica que una parte importante de sus reservas
+no se convierte en viajes completados.
 
 El vehículo con mayor generación de ingresos es **{highest_revenue['vehicle_type']}**, con
 **${highest_revenue['total_revenue']:,.0f}**. Esto permite diferenciar entre vehículos relevantes
@@ -556,9 +634,8 @@ por ingresos y vehículos con mayores problemas operativos.
 El mayor tiempo promedio de espera del cliente corresponde a **{highest_wait['vehicle_type']}**, con
 **{highest_wait['avg_ctat']:.2f} minutos** promedio.
 
-En conjunto, el análisis muestra que el desempeño de Uber no debe evaluarse únicamente por ingresos,
-sino también por eficiencia operativa, tiempos de espera y capacidad para convertir reservas en viajes
-completados.
+En conjunto, el análisis muestra que el desempeño de Uber debe evaluarse considerando al mismo tiempo
+ingresos, tiempos de espera y tasa de fallas.
 """
     )
 
@@ -581,15 +658,4 @@ reducen la conversión de reservas en viajes completados y, por lo tanto, afecta
 Desde una perspectiva OLAP, el modelo dimensional permite analizar el negocio por tiempo, vehículo, ubicación,
 método de pago y estado de reserva, facilitando la identificación de áreas de oportunidad operativa y financiera.
 """
-)
-
-st.divider()
-
-
-st.markdown("## Exploración del dataset integrado")
-
-st.dataframe(
-    df_filtered,
-    use_container_width=True,
-    height=500
 )
