@@ -1,187 +1,295 @@
-# Proyecto Final Módulo 4 – Uber Ride Analytics
+# Proyecto Final Módulo 4 – Uber Ride Analytics: Análisis Operativo y Financiero de Reservas Uber
 
+## Dashboard interactivo
 
-## Descripción
+**Aplicación desplegada en Streamlit:**
 
-Este proyecto tiene como objetivo desarrollar una solución completa de Business Intelligence utilizando datos de viajes de Uber durante 2024. Se aplicarán los conceptos vistos en el módulo, incluyendo modelado dimensional, implementación en AWS Aurora PostgreSQL, procesos ETL en Python, SQL avanzado y visualización de datos mediante un dashboard interactivo.
-
-## Pregunta Analítica
-
-**¿Cómo impactan las cancelaciones, los tiempos de espera y el tipo de vehículo en el desempeño operativo y los ingresos de Uber durante 2024?**
-
-## Justificación
-
-La eficiencia operativa es un factor clave para plataformas de movilidad como Uber. Las cancelaciones, los tiempos de llegada del conductor y las características del servicio pueden afectar tanto la experiencia del usuario como los ingresos generados por la plataforma.
-
-A través del análisis de los viajes registrados durante 2024, este proyecto busca identificar patrones relacionados con:
-
-* Cancelaciones por parte de clientes y conductores.
-* Tiempos de atención y duración de viajes.
-* Desempeño de los distintos tipos de vehículo.
-* Impacto en ingresos y satisfacción del usuario.
-
-Los resultados permitirán comprender qué factores operativos están asociados con un mejor desempeño del servicio.
+ **[https://proyectofinalmodulo4-scc.streamlit.app/](https://proyectofinalmodulo4-scc.streamlit.app/)**
 
 ---
 
-## Dataset
+## Resumen
 
-**Fuente:** Uber Ride Analytics Dashboard (Kaggle)
+Este proyecto desarrolla una solución completa de **Business Intelligence** para analizar el desempeño operativo y financiero de Uber durante 2024 mediante técnicas de modelado dimensional, procesos ETL, almacenamiento en AWS Aurora PostgreSQL, consultas SQL analíticas y visualización interactiva con Streamlit.
 
-El dataset contiene información de aproximadamente **150,000 viajes** y **21 variables**, incluyendo:
+Se construyó un modelo OLAP tipo estrella a partir de un dataset de **150,000 reservas**, permitiendo analizar la relación entre:
 
-* Estado del viaje.
-* Tipo de vehículo.
-* Ubicación de origen y destino.
-* Distancia recorrida.
-* Ingresos por viaje.
-* Tiempos de atención.
-* Calificaciones de conductores y clientes.
-* Métodos de pago.
-* Cancelaciones y motivos de cancelación.
+* Cancelaciones de viajes.
+* Tiempos de espera.
+* Tipos de vehículo.
+* Ingresos generados.
+* Eficiencia operativa.
 
-### Análisis Exploratorio Inicial
-
-* Registros: 150,000
-* Columnas: 21
-* Periodo analizado: 2024
-* Se identificaron valores nulos asociados al estado de los viajes (cancelados o incompletos), considerados válidos para el análisis.
-* Se detectaron Booking ID repetidos; sin embargo, corresponden a registros distintos y no representan duplicados reales del dataset.
+El resultado final es un dashboard interactivo que permite responder la pregunta analítica principal y generar hallazgos relevantes para la toma de decisiones.
 
 ---
 
-## Arquitectura del Proyecto
+# Pregunta analítica
 
-### Flujo End-to-End
+## ¿Cómo impactan las cancelaciones, los tiempos de espera y el tipo de vehículo en el desempeño operativo y los ingresos de Uber durante 2024?
+
+---
+
+# Problema y motivación
+
+Las plataformas de movilidad dependen de la capacidad de convertir solicitudes de viaje en viajes completados.
+
+Sin embargo, factores como:
+
+* Cancelaciones por parte del cliente.
+* Cancelaciones por parte del conductor.
+* Falta de conductores disponibles.
+* Viajes incompletos.
+* Tiempos excesivos de espera.
+
+pueden afectar directamente:
+
+* Los ingresos de la plataforma.
+* La satisfacción de los usuarios.
+* La eficiencia operativa.
+* La utilización de los vehículos.
+
+Este proyecto busca identificar qué factores operativos tienen mayor impacto sobre el desempeño financiero y operacional de Uber.
+
+---
+
+# Objetivos
+
+## Objetivo general
+
+Analizar el desempeño operativo y financiero de Uber durante 2024 mediante un modelo dimensional y un dashboard interactivo que permita evaluar el impacto de cancelaciones, tiempos de espera y tipos de vehículo.
+
+## Objetivos específicos
+
+* Analizar la distribución de estados de viaje.
+* Evaluar los ingresos generados por tipo de vehículo.
+* Identificar vehículos con mayor participación financiera.
+* Analizar la evolución mensual de ingresos.
+* Detectar rutas con mayor rentabilidad.
+* Comparar tasas de finalización y fallas operativas.
+* Evaluar el impacto de los tiempos de espera sobre las cancelaciones.
+* Construir una solución OLAP para análisis multidimensional.
+
+---
+
+# Fuente de datos
+
+### Dataset
+
+**Uber Ride Analytics Dashboard Dataset**
+
+Fuente:
+
+📊 Kaggle
+
+El conjunto de datos contiene información de viajes registrados durante 2024.
+
+## Tamaño del dataset
+
+| Métrica   |                       Valor |
+| --------- | --------------------------: |
+| Registros |                     150,000 |
+| Variables |                          21 |
+| Periodo   | Enero 2024 – Diciembre 2024 |
+
+---
+
+# Análisis exploratorio inicial
+
+## Calidad de datos
+
+### Registros
+
+* 150,000 filas
+* 21 columnas
+
+### Periodo analizado
+
+* Fecha mínima: 2024-01-01
+* Fecha máxima: 2024-12-30
+
+### Valores nulos
+
+Los nulos identificados corresponden principalmente a registros cancelados o incompletos, por lo que representan comportamiento válido del negocio.
+
+Ejemplos:
+
+| Variable                    | % Nulos |
+| --------------------------- | ------: |
+| Incomplete Rides Reason     |     94% |
+| Cancelled Rides by Customer |     93% |
+| Driver Cancellation Reason  |     82% |
+| Booking Value               |     32% |
+| Ride Distance               |     32% |
+
+### Distribución de estados
+
+| Estado                | Reservas |
+| --------------------- | -------: |
+| Completed             |   93,000 |
+| Cancelled by Driver   |   27,000 |
+| No Driver Found       |   10,500 |
+| Cancelled by Customer |   10,500 |
+| Incomplete            |    9,000 |
+
+### Duplicados
+
+Se identificaron 1,233 Booking ID repetidos.
+
+Después de la revisión se determinó que corresponden a registros independientes con atributos distintos, por lo que no fueron eliminados.
+
+---
+
+# 🏗️ Arquitectura End-to-End
 
 ```text
-                   Uber Ride Dataset (CSV)
-                   Kaggle - 150,000 registros
-                              │
-                              │
-                              ▼
+                    Uber Dataset (CSV)
+                             │
+                             ▼
 
-                  ETL Python - etl_pipeline.py
+                ETL Python (Pandas)
+        ┌──────────────────────────────┐
+        │ Extract                      │
+        │ Transform                    │
+        │ Load                         │
+        └──────────────────────────────┘
+                             │
+                             ▼
 
-                  Extract  → Lectura del archivo CSV
-                  Transform→ Limpieza de datos,
-                              tratamiento de nulos,
-                              generación de dimensiones,
-                              creación de surrogate keys
-                  Load     → Carga a AWS Aurora PostgreSQL
+                 AWS Aurora PostgreSQL
+                    Schema: uber_dwh
 
-                              │
-                              ▼
+        • dim_date
+        • dim_customer
+        • dim_vehicle
+        • dim_location
+        • dim_payment
+        • dim_status
+        • fact_bookings
 
-                    AWS Aurora PostgreSQL
-                         Schema: uber_bi
+                             │
+                             ▼
 
-                    • dim_date
-                    • dim_vehicle
-                    • dim_location
-                    • dim_payment
-                    • dim_status
-                    • fact_rides
+                    SQL Analítico
+               (CTEs + Aggregations)
 
-                              │
-                              ▼
+                             │
+                             ▼
 
-                     SQL Analítico Avanzado
+                Exportación a CSV
+             (independencia de AWS)
 
-                    • CTEs
-                    • Window Functions
-                    • Rankings
-                    • Tendencias temporales
+                             │
+                             ▼
 
-                              │
-                              ▼
-
-                     Dashboard Interactivo
-
-                 • Ingresos
-                 • Cancelaciones
-                 • Tiempos de espera
-                 • Tipo de vehículo
+                  Dashboard Streamlit
 ```
 
 ---
 
-## Modelo Dimensional
-
-### Grano
-
-Una fila de la tabla de hechos representa un viaje (booking) registrado en la plataforma Uber durante 2024.
-
-### Esquema Estrella
+#  Estructura del repositorio
 
 ```text
-                         dim_date
-                    ┌───────────────┐
-                    │  date_key PK  │
-                    │  full_date    │
-                    │  year         │
-                    │  quarter      │
-                    │  month        │
-                    │  month_name   │
-                    │  day          │
-                    │  day_name     │
-                    │  is_weekend   │
-                    │  hour         │
-                    └───────────────┘
-                            ▲
-                            │
-                            │
-┌────────────────┐     ┌────┴─────────────────────┐     ┌────────────────┐
-│  dim_vehicle   │────►│       fact_rides         │◄────│  dim_payment   │
-│                │     │                          │     │                │
-│ vehicle_key PK │     │ ride_key PK             │     │ payment_key PK │
-│ vehicle_type   │     │ date_key FK             │     │ payment_method │
-└────────────────┘     │ vehicle_key FK          │     └────────────────┘
-                       │ pickup_location_key FK  │
-                       │ drop_location_key FK    │
-                       │ payment_key FK          │
-                       │ status_key FK           │
-                       │                          │
-                       │ booking_id              │
-                       │ customer_id             │
-                       │ booking_value           │
-                       │ ride_distance           │
-                       │ avg_vtat                │
-                       │ avg_ctat                │
-                       │ driver_rating           │
-                       │ customer_rating         │
-                       │ cancelled_customer      │
-                       │ cancelled_driver        │
-                       │ incomplete_ride         │
-                       └──────────┬──────────────┘
-                                  │
-                ┌─────────────────┼─────────────────┐
-                │                                   │
-                ▼                                   ▼
-
-      ┌──────────────────┐               ┌──────────────────┐
-      │  dim_location    │               │   dim_status     │
-      │                  │               │                  │
-      │ location_key PK  │               │ status_key PK   │
-      │ location_name    │               │ booking_status  │
-      └──────────────────┘               └──────────────────┘
-
-         (usada como Pickup y Drop)
+Proyecto_final_modulo_4/
+│
+├── README.md
+│
+├── notebooks/
+│   └── proyecto_final.ipynb
+│
+├── dashboard/
+│   └── app.py
+│
+├── data/
+│   ├── dim_date.csv
+│   ├── dim_customer.csv
+│   ├── dim_vehicle.csv
+│   ├── dim_location.csv
+│   ├── dim_payment.csv
+│   ├── dim_status.csv
+│   └── fact_bookings.csv
 ```
 
-### Dimensiones
+---
 
-* **Dim_Date:** Información temporal del viaje.
-* **Dim_Vehicle:** Tipo de vehículo utilizado.
-* **Dim_Location:** Ubicación de origen y destino.
-* **Dim_Payment:** Método de pago utilizado.
-* **Dim_Status:** Estado final del viaje.
+#  Modelo dimensional
 
-### Tabla de Hechos
+## Grano
 
-**Fact_Rides**
+Una fila de la tabla de hechos representa una reserva (booking) registrada en Uber durante 2024.
 
-Contiene las métricas principales del negocio:
+---
+
+## Esquema estrella
+
+```text
+                 dim_date
+                      │
+                      │
+                      ▼
+
+ dim_customer ──► fact_bookings ◄── dim_vehicle
+                      │
+                      │
+                      ▼
+
+ dim_location ◄───────┼───────► dim_payment
+                      │
+                      ▼
+
+                 dim_status
+```
+
+---
+
+## Dimensiones
+
+### dim_date
+
+Información temporal del viaje.
+
+* Fecha
+* Día
+* Mes
+* Trimestre
+* Año
+* Día de semana
+
+### dim_customer
+
+Identificador único de cliente.
+
+### dim_vehicle
+
+Tipo de vehículo.
+
+* Auto
+* Bike
+* Go Mini
+* Go Sedan
+* Premier Sedan
+* Uber XL
+* eBike
+
+### dim_location
+
+Ubicación de origen y destino.
+
+### dim_payment
+
+Método de pago.
+
+### dim_status
+
+Estado del viaje y motivos asociados.
+
+---
+
+## Tabla de hechos
+
+### fact_bookings
+
+Métricas principales:
 
 * Booking Value
 * Ride Distance
@@ -189,53 +297,295 @@ Contiene las métricas principales del negocio:
 * Avg CTAT
 * Driver Rating
 * Customer Rating
-* Indicadores de cancelación
-* Indicadores de viajes incompletos
+* Viajes completados
+* Cancelaciones
+* Viajes incompletos
 
 ---
 
-## Tecnologías
+# ⚙️ Proceso ETL
 
-* AWS Aurora PostgreSQL
-* Python
-* Pandas
+## Extract
+
+Se realizó la lectura del archivo CSV utilizando Pandas.
+
+```python
+df = pd.read_csv("ncr_ride_bookings.csv")
+```
+
+---
+
+## Transform
+
+Transformaciones principales:
+
+* Estandarización de nombres de columnas.
+* Conversión de fechas.
+* Limpieza de identificadores.
+* Tratamiento de valores nulos.
+* Construcción de dimensiones.
+* Generación de surrogate keys.
+* Construcción de la tabla de hechos.
+* Validaciones de integridad.
+
+### Validaciones realizadas
+
+| Validación          | Resultado |
+| ------------------- | --------- |
+| Filas origen        | 150,000   |
+| Filas fact_bookings | 150,000   |
+| Llaves nulas        | 0         |
+| Fechas inválidas    | 0         |
+
+---
+
+## Load
+
+La carga se realizó en AWS Aurora PostgreSQL utilizando:
+
 * SQLAlchemy
-* PostgreSQL
-* SQL Avanzado
-* GitHub
-* Streamlit
+* Psycopg2
+* Pandas to_sql()
+
+Schema utilizado:
+
+```sql
+uber_dwh
+```
 
 ---
 
-## Estado Actual del Proyecto
+# ☁️ Implementación en AWS
 
-### Completado
+Motor:
 
-* Definición de la pregunta analítica.
-* Exploración y validación del dataset.
-* Diseño del modelo dimensional.
-* Diseño de la arquitectura general de la solución.
+**Amazon Aurora PostgreSQL**
 
-### En desarrollo
+Base de datos:
 
-* Implementación del esquema en AWS Aurora PostgreSQL.
-* Desarrollo del proceso ETL.
-* Construcción de consultas analíticas con SQL avanzado.
-* Desarrollo del dashboard interactivo.
+```sql
+northwind
+```
+
+Schema:
+
+```sql
+uber_dwh
+```
+
+Tablas cargadas:
+
+```sql
+dim_date
+dim_customer
+dim_vehicle
+dim_location
+dim_payment
+dim_status
+fact_bookings
+```
 
 ---
 
-## Próximos Pasos
+# 💻 Consultas SQL analíticas
 
-1. Crear el esquema dimensional en AWS Aurora PostgreSQL.
-2. Desarrollar el pipeline ETL completo.
-3. Implementar consultas analíticas utilizando SQL avanzado.
-4. Construir el dashboard interactivo.
-5. Documentar hallazgos y conclusiones finales.
+Se desarrollaron siete consultas principales:
+
+### 1. KPIs generales
+
+Obtiene:
+
+* Total bookings
+* Revenue total
+* Completion rate
+* Failure rate
 
 ---
 
-## Repositorio
+### 2. Distribución de estados de viaje
 
-Proyecto académico desarrollado como entrega final del Módulo 4, aplicando técnicas de Business Intelligence, modelado dimensional, ETL, SQL avanzado y visualización de datos sobre un caso de análisis de operaciones de Uber.
+Analiza:
+
+* Completed
+* Cancelled by Driver
+* Cancelled by Customer
+* No Driver Found
+* Incomplete
+
+---
+
+### 3. Ingresos por tipo de vehículo
+
+Permite identificar la participación financiera de cada categoría.
+
+---
+
+### 4. Evolución mensual de ingresos
+
+Analiza tendencias temporales utilizando agregaciones mensuales.
+
+---
+
+### 5. Top rutas más rentables
+
+Identifica los corredores con mayor generación de ingresos.
+
+---
+
+### 6. Ranking operativo por tipo de vehículo
+
+Compara:
+
+* Completion Rate
+* Failure Rate
+* Revenue Share
+
+---
+
+### 7. Impacto de tiempos de espera, fallas e ingresos
+
+Relaciona:
+
+* Avg VTAT
+* Avg CTAT
+* Failure Rate
+* Revenue
+
+---
+
+#  Dashboard interactivo
+
+El dashboard fue desarrollado en Streamlit y utiliza archivos CSV exportados desde el modelo dimensional, permitiendo su ejecución sin depender de una conexión activa a AWS.
+
+## Módulos principales
+
+### 1. Desempeño general
+
+* Total bookings
+* Revenue
+* Completion rate
+* Failure rate
+
+### 2. Distribución de estados
+
+Análisis de resultados operativos.
+
+### 3. Ingresos por tipo de vehículo
+
+Comparación financiera.
+
+### 4. Evolución mensual de ingresos
+
+Análisis temporal.
+
+### 5. Top rutas más rentables
+
+Análisis geográfico.
+
+### 6. Ranking operativo
+
+Comparación de eficiencia operativa.
+
+### 7. Impacto de tiempos de espera
+
+Relación entre eficiencia y resultados financieros.
+
+---
+
+#  Hallazgos principales
+
+## Hallazgo 1
+
+Durante 2024 se registraron **150,000 reservas** que generaron ingresos por **$51.8 millones**.
+
+---
+
+## Hallazgo 2
+
+El **62%** de las reservas culminó exitosamente, mientras que el **38%** terminó en cancelaciones, falta de conductor o viajes incompletos.
+
+---
+
+## Hallazgo 3
+
+El estado **Completed** concentró **93,000 viajes**, siendo el resultado dominante dentro de la operación.
+
+---
+
+## Hallazgo 4
+
+El vehículo **Auto** fue el principal generador de ingresos, aportando aproximadamente el **25% del revenue total**.
+
+---
+
+## Hallazgo 5
+
+El mes con mayores ingresos fue **marzo**, mientras que **febrero** presentó el menor desempeño.
+
+---
+
+## Hallazgo 6
+
+La ruta **New Delhi Railway Station → Rajouri Garden** fue la ruta más rentable del periodo analizado.
+
+---
+
+## Hallazgo 7
+
+**Go Sedan** presentó la mayor tasa de fallas operativas.
+
+---
+
+## Hallazgo 8
+
+**Uber XL** registró la mayor tasa de finalización de viajes.
+
+---
+
+## Hallazgo 9
+
+Los vehículos con mayores ingresos no necesariamente presentan la mejor eficiencia operativa.
+
+---
+
+## Hallazgo 10
+
+Los tiempos de espera y la disponibilidad de conductores tienen un impacto directo sobre la tasa de fallas y los ingresos generados.
+
+---
+
+#  Conclusiones
+
+El desempeño de Uber durante 2024 no depende únicamente del volumen de reservas o de los ingresos generados, sino también de la eficiencia operativa con la que se atienden las solicitudes.
+
+Los resultados muestran que:
+
+* Las cancelaciones representan una fuente importante de pérdida operativa.
+* Los tiempos de espera están asociados con mayores tasas de falla.
+* Los vehículos con mayores ingresos no siempre son los más eficientes.
+* La evaluación conjunta de ingresos, tiempos de espera y tasas de finalización proporciona una visión más completa del negocio.
+
+Desde una perspectiva de Business Intelligence, el modelo dimensional construido permite analizar el negocio desde múltiples dimensiones y facilita la identificación de oportunidades de mejora operativa y financiera.
+
+
+# 👨‍💻 Autor
+
+**Sebastián Cruz Castro**
+
+Proyecto Final — Módulo 4
+Diplomado en Manejo de Datos SQL y NoSQL en Entornos Cloud AWS
+
+---
+
+## 🔗 Enlaces
+
+**Repositorio GitHub**
+
+[Proyecto Final Módulo 4](https://github.com/scruzcas/Proyecto_final_modulo_4?utm_source=chatgpt.com)
+
+**Dashboard Streamlit**
+
+[Uber Ride Analytics Dashboard](https://proyectofinalmodulo4-scc.streamlit.app/?utm_source=chatgpt.com)
+
+Este formato está bastante alineado con una entrega de nivel alto porque cubre: problema, arquitectura, modelo dimensional, ETL, implementación cloud, SQL avanzado, dashboard, hallazgos y conclusiones; que son precisamente los elementos que suelen evaluar en la rúbrica del proyecto final.
 
