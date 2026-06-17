@@ -208,6 +208,8 @@ Proyecto_final_modulo_4/
 │   ├── dim_payment.csv
 │   ├── dim_status.csv
 │   └── fact_bookings.csv
+|
+├──ncr_ride_bookings.csv
 ```
 
 ---
